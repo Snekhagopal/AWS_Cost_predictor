@@ -1,7 +1,9 @@
+import html as html_lib
 import os
 import joblib
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
 
 # =========================================================
@@ -290,9 +292,10 @@ footer {
 # =========================================================
 # LOAD MODEL
 # =========================================================
+BASE_DIR = Path(__file__).resolve().parent
 
-MODEL_PATH = "cloudcost_model.pkl"
-OPTIONS_PATH = "input_options.pkl"
+MODEL_PATH = BASE_DIR / "cloudcost_model.pkl"
+OPTIONS_PATH = BASE_DIR / "input_options.pkl"
 
 
 if not os.path.exists(MODEL_PATH):
@@ -305,8 +308,12 @@ if not os.path.exists(OPTIONS_PATH):
     st.stop()
 
 
-model = joblib.load(MODEL_PATH)
-input_options = joblib.load(OPTIONS_PATH)
+try:
+    model = joblib.load(MODEL_PATH)
+    input_options = joblib.load(OPTIONS_PATH)
+except Exception as e:
+    st.error(f"Failed to load model files: {e}")
+    st.stop()
 
 
 # =========================================================
@@ -346,28 +353,28 @@ with st.sidebar:
 ⚙️ &nbsp; EC2 Cost Estimator
 </div>
 
-<div class="sidebar-item">
-📁 &nbsp; S3 Cost Estimator
+<div class="sidebar-item" style="opacity:0.5;">
+📁 &nbsp; S3 Cost Estimator &nbsp;<span style="font-size:11px;background:#ffffff22;padding:2px 6px;border-radius:10px;">Coming Soon</span>
 </div>
 
-<div class="sidebar-item">
-🗄️ &nbsp; RDS Cost Estimator
+<div class="sidebar-item" style="opacity:0.5;">
+🗄️ &nbsp; RDS Cost Estimator &nbsp;<span style="font-size:11px;background:#ffffff22;padding:2px 6px;border-radius:10px;">Coming Soon</span>
 </div>
 
-<div class="sidebar-item">
-🔖 &nbsp; Saved Estimates
+<div class="sidebar-item" style="opacity:0.5;">
+🔖 &nbsp; Saved Estimates &nbsp;<span style="font-size:11px;background:#ffffff22;padding:2px 6px;border-radius:10px;">Coming Soon</span>
 </div>
 
-<div class="sidebar-item">
-🕘 &nbsp; Cost History
+<div class="sidebar-item" style="opacity:0.5;">
+🕘 &nbsp; Cost History &nbsp;<span style="font-size:11px;background:#ffffff22;padding:2px 6px;border-radius:10px;">Coming Soon</span>
 </div>
 
-<div class="sidebar-item">
-📊 &nbsp; Analytics
+<div class="sidebar-item" style="opacity:0.5;">
+📊 &nbsp; Analytics &nbsp;<span style="font-size:11px;background:#ffffff22;padding:2px 6px;border-radius:10px;">Coming Soon</span>
 </div>
 
-<div class="sidebar-item">
-ℹ️ &nbsp; About Project
+<div class="sidebar-item" style="opacity:0.5;">
+ℹ️ &nbsp; About Project &nbsp;<span style="font-size:11px;background:#ffffff22;padding:2px 6px;border-radius:10px;">Coming Soon</span>
 </div>
 """,
         unsafe_allow_html=True
@@ -406,10 +413,7 @@ Get instant cost estimates for your AWS resources using Machine Learning
 # LAYOUT
 # =========================================================
 
-left, right = st.columns(
-    [1.08, 0.92],
-    gap="large"
-)
+left, right = st.columns([1.08, 0.92])
 
 
 # =========================================================
@@ -502,7 +506,7 @@ Configure your EC2 instance details below
     with c6:
         memory = st.number_input(
             "Memory (GB)",
-            min_value=0.0,
+            min_value=0.5,
             value=8.0,
             step=1.0
         )
@@ -552,7 +556,8 @@ Configure your EC2 instance details below
             "Usage (Hours)",
             min_value=1.0,
             value=730.0,
-            step=1.0
+            step=1.0,
+            help="730 hours ≈ 1 month of continuous usage"
         )
 
 
@@ -698,107 +703,116 @@ Actual AWS pricing may vary.
 # PREDICTION
 # =========================================================
 
-predicted_hourly_price = 0.0
-estimated_cost = 0.0
+predicted_hourly_price = None
+estimated_cost = None
+prediction_error = None
 
 
 if predict_button:
 
-    input_data = pd.DataFrame(
-        {
-            "vCPU": [vcpu],
-            "Memory_GiB": [memory],
-            "ClockSpeed_GHz": [clock_speed],
-            "GPU": [gpu],
-            "GPU_Memory_GB": [gpu_memory],
+    with st.spinner("Calculating estimate..."):
+        try:
+            input_data = pd.DataFrame(
+                {
+                    "vCPU": [int(vcpu)],
+                    "Memory_GiB": [memory],
+                    "ClockSpeed_GHz": [clock_speed],
+                    "GPU": [int(gpu)],
+                    "GPU_Memory_GB": [gpu_memory],
 
-            "Normalization Size Factor": [
-                normalization_factor
-            ],
+                    "Normalization Size Factor": [
+                        normalization_factor
+                    ],
 
-            "Storage_Count": [
-                storage_count
-            ],
+                    "Storage_Count": [
+                        int(storage_count)
+                    ],
 
-            "Total_Storage_GB": [
-                total_storage
-            ],
+                    "Total_Storage_GB": [
+                        total_storage
+                    ],
 
-            "Storage_Type": [
-                storage_type
-            ],
+                    "Storage_Type": [
+                        storage_type
+                    ],
 
-            "EBS_Throughput_Mbps": [
-                ebs_throughput
-            ],
+                    "EBS_Throughput_Mbps": [
+                        ebs_throughput
+                    ],
 
-            "Instance Type": [
-                instance_type
-            ],
+                    "Instance Type": [
+                        instance_type
+                    ],
 
-            "Instance Family": [
-                instance_family
-            ],
+                    "Instance Family": [
+                        instance_family
+                    ],
 
-            "Processor Architecture": [
-                processor_arch
-            ],
+                    "Processor Architecture": [
+                        processor_arch
+                    ],
 
-            "Current Generation": [
-                current_generation
-            ],
+                    "Current Generation": [
+                        current_generation
+                    ],
 
-            "Region Code": [
-                region
-            ],
+                    "Region Code": [
+                        region
+                    ],
 
-            "Operating System": [
-                operating_system
-            ],
+                    "Operating System": [
+                        operating_system
+                    ],
 
-            "Tenancy": [
-                tenancy
-            ],
+                    "Tenancy": [
+                        tenancy
+                    ],
 
-            "License Model": [
-                license_model
-            ],
+                    "License Model": [
+                        license_model
+                    ],
 
-            "CapacityStatus": [
-                capacity_status
-            ],
+                    "CapacityStatus": [
+                        capacity_status
+                    ],
 
-            "Pre Installed S/W": [
-                preinstalled_software
-            ],
+                    "Pre Installed S/W": [
+                        preinstalled_software
+                    ],
 
-            "TermType": [
-                term_type
-            ],
+                    "TermType": [
+                        term_type
+                    ],
 
-            "PurchaseOption": [
-                purchase_option
-            ],
+                    "PurchaseOption": [
+                        purchase_option
+                    ],
 
-            "LeaseContractLength": [
-                lease_contract
-            ],
+                    "LeaseContractLength": [
+                        lease_contract
+                    ],
 
-            "OfferingClass": [
-                offering_class
-            ]
-        }
-    )
+                    "OfferingClass": [
+                        offering_class
+                    ]
+                }
+            )
 
+            predicted_hourly_price = float(
+                model.predict(input_data)[0]
+            )
 
-    predicted_hourly_price = float(
-        model.predict(input_data)[0]
-    )
+            if predicted_hourly_price < 0:
+                st.warning(
+                    "Model returned a negative price — input may be out of distribution. "
+                    "Displaying $0.00."
+                )
+                predicted_hourly_price = 0.0
 
-    estimated_cost = (
-        predicted_hourly_price
-        * usage_hours
-    )
+            estimated_cost = predicted_hourly_price * usage_hours
+
+        except Exception as e:
+            prediction_error = str(e)
 
 
 # =========================================================
@@ -819,8 +833,18 @@ Estimated Cost
     )
 
 
-    st.markdown(
-        f"""
+    if prediction_error:
+        st.error(f"Prediction failed: {prediction_error}")
+
+    elif estimated_cost is None:
+        st.info(
+            "Configure your instance on the left and click "
+            "**▣ Predict Cost** to see an estimate."
+        )
+
+    else:
+        st.markdown(
+            f"""
 <div class="cost-card">
 <div class="cost-label">
 Predicted Estimated Cost
@@ -839,35 +863,40 @@ ${predicted_hourly_price:,.4f} / hour
 </div>
 </div>
 """,
-        unsafe_allow_html=True
-    )
+            unsafe_allow_html=True
+        )
+
+        st.markdown("### Breakdown")
+
+        breakdown_df = pd.DataFrame(
+            {
+                "Item": [
+                    "Hourly Rate",
+                    "Usage Duration",
+                    "Total Estimated Cost"
+                ],
+
+                "Value": [
+                    f"${predicted_hourly_price:.4f} / hr",
+                    f"{usage_hours:.0f} hours",
+                    f"${estimated_cost:,.2f}"
+                ]
+            }
+        )
+
+        st.dataframe(
+            breakdown_df,
+            hide_index=True,
+            use_container_width=True
+        )
 
 
-    st.markdown("### Breakdown")
-
-
-    breakdown_df = pd.DataFrame(
-        {
-            "Item": [
-                "EC2 Instance Cost",
-                f"Usage ({usage_hours:.0f} hours)",
-                "Total Estimated Cost"
-            ],
-
-            "Estimated Cost (USD)": [
-                f"${predicted_hourly_price:.4f} / hour",
-                f"{usage_hours:.0f} hours",
-                f"${estimated_cost:,.2f}"
-            ]
-        }
-    )
-
-
-    st.dataframe(
-    breakdown_df,
-    hide_index=True,
-    width="stretch")
-
+    _r = html_lib.escape(region)
+    _it = html_lib.escape(instance_type)
+    _os = html_lib.escape(operating_system)
+    _ten = html_lib.escape(tenancy)
+    _tt = html_lib.escape(term_type)
+    _lm = html_lib.escape(license_model)
 
     st.markdown(
         f"""
@@ -878,22 +907,32 @@ ${predicted_hourly_price:,.4f} / hour
 <table style="width:100%;color:#173d6b;">
 <tr>
 <td>Region</td>
-<td><b>{region}</b></td>
+<td><b>{_r}</b></td>
 </tr>
 
 <tr>
 <td>Instance Type</td>
-<td><b>{instance_type}</b></td>
+<td><b>{_it}</b></td>
 </tr>
 
 <tr>
 <td>OS</td>
-<td><b>{operating_system}</b></td>
+<td><b>{_os}</b></td>
 </tr>
 
 <tr>
 <td>Tenancy</td>
-<td><b>{tenancy}</b></td>
+<td><b>{_ten}</b></td>
+</tr>
+
+<tr>
+<td>Usage Type</td>
+<td><b>{_tt}</b></td>
+</tr>
+
+<tr>
+<td>License Model</td>
+<td><b>{_lm}</b></td>
 </tr>
 
 <tr>
