@@ -179,10 +179,10 @@ model_df["GPU"] = (
 
 
 model_df["GPU_Memory_GB"] = (
-    model_df["GPU Memory"]
-    .str.extract(r"(\d+\.?\d*)")[0]
-    .astype(float)
-    .fillna(0)
+    pd.to_numeric(
+        model_df["GPU Memory"].str.extract(r"(\d+\.?\d*)")[0],
+        errors="coerce"
+    ).fillna(0)
 )
 
 
@@ -191,20 +191,18 @@ model_df["GPU_Memory_GB"] = (
 # ==========================================
 
 def convert_ebs_to_mbps(value):
+    import re
 
     if pd.isna(value):
         return np.nan
 
     value = str(value)
+    match = re.search(r"(\d+(?:\.\d+)?)", value)
 
-    match = pd.Series([value]).str.extract(
-        r"(\d+(?:\.\d+)?)"
-    )[0].iloc[0]
-
-    if pd.isna(match):
+    if not match:
         return np.nan
 
-    number = float(match)
+    number = float(match.group(1))
 
     if "Gbps" in value:
         number = number * 1000
