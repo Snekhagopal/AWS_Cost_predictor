@@ -887,7 +887,7 @@ ${predicted_hourly_price:,.4f} / hour
         st.dataframe(
             breakdown_df,
             hide_index=True,
-            use_container_width=True
+            width="stretch"
         )
 
 
