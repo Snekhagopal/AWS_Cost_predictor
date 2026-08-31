@@ -296,6 +296,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 MODEL_PATH = BASE_DIR / "cloudcost_model.pkl"
 OPTIONS_PATH = BASE_DIR / "input_options.pkl"
+SPECS_PATH = BASE_DIR / "instance_specs.pkl"
 
 
 if not os.path.exists(MODEL_PATH):
@@ -311,6 +312,7 @@ if not os.path.exists(OPTIONS_PATH):
 try:
     model = joblib.load(MODEL_PATH)
     input_options = joblib.load(OPTIONS_PATH)
+    instance_specs = joblib.load(SPECS_PATH) if os.path.exists(SPECS_PATH) else {}
 except Exception as e:
     st.error(f"Failed to load model files: {e}")
     st.stop()
@@ -322,11 +324,17 @@ except Exception as e:
 
 def get_options(column, fallback):
     options = input_options.get(column, [])
-
     if not options:
         return fallback
-
     return options
+
+
+def get_spec(instance_type, field, fallback):
+    specs = instance_specs.get(instance_type, {})
+    val = specs.get(field)
+    if val is None:
+        return fallback
+    return val
 
 
 # =========================================================
@@ -431,7 +439,7 @@ Estimate EC2 Instance Cost
 </div>
 
 <div class="section-subtitle">
-Configure your EC2 instance details below
+Select an Instance Type — vCPUs, Memory, and Storage auto-populate from AWS specs
 </div>
 </div>
 """,
@@ -499,16 +507,18 @@ Configure your EC2 instance details below
         vcpu = st.number_input(
             "vCPUs",
             min_value=1.0,
-            value=2.0,
-            step=1.0
+            value=float(get_spec(instance_type, "vCPU", 2.0)),
+            step=1.0,
+            key=f"vcpu_{instance_type}"
         )
 
     with c6:
         memory = st.number_input(
             "Memory (GB)",
             min_value=0.5,
-            value=8.0,
-            step=1.0
+            value=float(get_spec(instance_type, "Memory_GiB", 8.0)),
+            step=1.0,
+            key=f"memory_{instance_type}"
         )
 
 
@@ -518,21 +528,26 @@ Configure your EC2 instance details below
 
     c7, c8 = st.columns(2)
 
+    _spec_storage_type = get_spec(instance_type, "Storage_Type", "EBS only")
+    _storage_opts = get_options("Storage_Type", ["EBS only"])
+    _storage_default_idx = _storage_opts.index(_spec_storage_type) if _spec_storage_type in _storage_opts else 0
+
     with c7:
         storage_type = st.selectbox(
             "Storage Type",
-            get_options(
-                "Storage_Type",
-                ["EBS only"]
-            )
+            _storage_opts,
+            index=_storage_default_idx,
+            key=f"storage_type_{instance_type}"
         )
 
     with c8:
         total_storage = st.number_input(
-            "EBS Storage (GB)",
+            "Instance Local Storage (GB)",
             min_value=0.0,
-            value=100.0,
-            step=10.0
+            value=float(get_spec(instance_type, "Total_Storage_GB", 0.0)),
+            step=10.0,
+            help="Local NVMe/SSD storage attached to the instance. Auto-populated from the selected instance type.",
+            key=f"total_storage_{instance_type}"
         )
 
 
@@ -574,31 +589,38 @@ Configure your EC2 instance details below
             clock_speed = st.number_input(
                 "Clock Speed (GHz)",
                 min_value=0.0,
-                value=3.0
+                value=float(get_spec(instance_type, "ClockSpeed_GHz", 3.0)),
+                key=f"clock_{instance_type}"
             )
 
             gpu = st.number_input(
                 "GPU Count",
                 min_value=0.0,
-                value=0.0
+                value=float(get_spec(instance_type, "GPU", 0.0)),
+                step=0.125,
+                help="Fractional GPUs allowed (e.g. 0.125, 0.25, 0.5 for shared GPU instances)",
+                key=f"gpu_{instance_type}"
             )
 
             gpu_memory = st.number_input(
                 "GPU Memory (GB)",
                 min_value=0.0,
-                value=0.0
+                value=float(get_spec(instance_type, "GPU_Memory_GB", 0.0)),
+                key=f"gpu_mem_{instance_type}"
             )
 
             normalization_factor = st.number_input(
                 "Normalization Size Factor",
                 min_value=0.0,
-                value=1.0
+                value=float(get_spec(instance_type, "Normalization Size Factor", 1.0)),
+                key=f"norm_{instance_type}"
             )
 
             storage_count = st.number_input(
                 "Storage Count",
                 min_value=0.0,
-                value=0.0
+                value=float(get_spec(instance_type, "Storage_Count", 0.0)),
+                key=f"storage_cnt_{instance_type}"
             )
 
             ebs_throughput = st.number_input(
@@ -607,31 +629,40 @@ Configure your EC2 instance details below
                 value=0.0
             )
 
+            _fam_opts = get_options("Instance Family", ["General purpose"])
+            _fam_spec = get_spec(instance_type, "Instance Family", "General purpose")
+            _fam_idx = _fam_opts.index(_fam_spec) if _fam_spec in _fam_opts else 0
+
             instance_family = st.selectbox(
                 "Instance Family",
-                get_options(
-                    "Instance Family",
-                    ["General purpose"]
-                )
+                _fam_opts,
+                index=_fam_idx,
+                key=f"fam_{instance_type}"
             )
+
+            _arch_opts = get_options("Processor Architecture", ["64-bit"])
+            _arch_spec = get_spec(instance_type, "Processor Architecture", "64-bit")
+            _arch_idx = _arch_opts.index(_arch_spec) if _arch_spec in _arch_opts else 0
 
             processor_arch = st.selectbox(
                 "Processor Architecture",
-                get_options(
-                    "Processor Architecture",
-                    ["64-bit"]
-                )
+                _arch_opts,
+                index=_arch_idx,
+                key=f"arch_{instance_type}"
             )
 
 
         with a2:
 
+            _gen_opts = get_options("Current Generation", ["Yes"])
+            _gen_spec = get_spec(instance_type, "Current Generation", "Yes")
+            _gen_idx = _gen_opts.index(_gen_spec) if _gen_spec in _gen_opts else 0
+
             current_generation = st.selectbox(
                 "Current Generation",
-                get_options(
-                    "Current Generation",
-                    ["Yes"]
-                )
+                _gen_opts,
+                index=_gen_idx,
+                key=f"gen_{instance_type}"
             )
 
             license_model = st.selectbox(
@@ -652,35 +683,45 @@ Configure your EC2 instance details below
 
             preinstalled_software = st.selectbox(
                 "Pre Installed Software",
-                get_options(
+                ["Not Applicable"] + get_options(
                     "Pre Installed S/W",
-                    ["Not Applicable"]
-                )
+                    []
+                ),
+                help="Select 'Not Applicable' for Linux, RHEL, SUSE, Ubuntu Pro instances"
             )
 
-            purchase_option = st.selectbox(
-                "Purchase Option",
-                get_options(
-                    "PurchaseOption",
-                    ["Not Applicable"]
+            if term_type == "OnDemand":
+                st.info(
+                    "Purchase Option, Lease Contract, and Offering Class "
+                    "are not applicable for OnDemand pricing."
                 )
-            )
+                purchase_option = "Not Applicable"
+                lease_contract = "Not Applicable"
+                offering_class = "Not Applicable"
+            else:
+                purchase_option = st.selectbox(
+                    "Purchase Option",
+                    get_options(
+                        "PurchaseOption",
+                        ["No Upfront"]
+                    )
+                )
 
-            lease_contract = st.selectbox(
-                "Lease Contract Length",
-                get_options(
-                    "LeaseContractLength",
-                    ["Not Applicable"]
+                lease_contract = st.selectbox(
+                    "Lease Contract Length",
+                    get_options(
+                        "LeaseContractLength",
+                        ["1yr"]
+                    )
                 )
-            )
 
-            offering_class = st.selectbox(
-                "Offering Class",
-                get_options(
-                    "OfferingClass",
-                    ["Not Applicable"]
+                offering_class = st.selectbox(
+                    "Offering Class",
+                    get_options(
+                        "OfferingClass",
+                        ["standard"]
+                    )
                 )
-            )
 
 
     predict_button = st.button(
@@ -887,7 +928,7 @@ ${predicted_hourly_price:,.4f} / hour
         st.dataframe(
             breakdown_df,
             hide_index=True,
-            use_container_width=True
+            width="stretch"
         )
 
 
