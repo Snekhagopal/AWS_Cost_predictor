@@ -309,10 +309,17 @@ if not os.path.exists(OPTIONS_PATH):
     st.stop()
 
 
+@st.cache_resource(show_spinner="Loading model...")
+def load_artifacts():
+    return (
+        joblib.load(MODEL_PATH),
+        joblib.load(OPTIONS_PATH),
+        joblib.load(SPECS_PATH) if os.path.exists(SPECS_PATH) else {}
+    )
+
+
 try:
-    model = joblib.load(MODEL_PATH)
-    input_options = joblib.load(OPTIONS_PATH)
-    instance_specs = joblib.load(SPECS_PATH) if os.path.exists(SPECS_PATH) else {}
+    model, input_options, instance_specs = load_artifacts()
 except Exception as e:
     st.error(f"Failed to load model files: {e}")
     st.stop()
@@ -327,6 +334,16 @@ def get_options(column, fallback):
     if not options:
         return fallback
     return options
+
+
+def select_option(label, column, default):
+    options = get_options(column, [default])
+
+    return st.selectbox(
+        label,
+        options,
+        index=options.index(default) if default in options else 0
+    )
 
 
 def get_spec(instance_type, field, fallback):
@@ -454,21 +471,17 @@ Select an Instance Type — vCPUs, Memory, and Storage auto-populate from AWS sp
     c1, c2 = st.columns(2)
 
     with c1:
-        region = st.selectbox(
+        region = select_option(
             "AWS Region",
-            get_options(
-                "Region Code",
-                ["ap-south-1"]
-            )
+            "Region Code",
+            "ap-south-1"
         )
 
     with c2:
-        instance_type = st.selectbox(
+        instance_type = select_option(
             "Instance Type",
-            get_options(
-                "Instance Type",
-                ["m5.large"]
-            )
+            "Instance Type",
+            "m5.large"
         )
 
 
@@ -479,21 +492,17 @@ Select an Instance Type — vCPUs, Memory, and Storage auto-populate from AWS sp
     c3, c4 = st.columns(2)
 
     with c3:
-        operating_system = st.selectbox(
+        operating_system = select_option(
             "Operating System",
-            get_options(
-                "Operating System",
-                ["Linux"]
-            )
+            "Operating System",
+            "Linux"
         )
 
     with c4:
-        tenancy = st.selectbox(
+        tenancy = select_option(
             "Tenancy",
-            get_options(
-                "Tenancy",
-                ["Shared"]
-            )
+            "Tenancy",
+            "Shared"
         )
 
 
@@ -558,12 +567,10 @@ Select an Instance Type — vCPUs, Memory, and Storage auto-populate from AWS sp
     c9, c10 = st.columns(2)
 
     with c9:
-        term_type = st.selectbox(
+        term_type = select_option(
             "Usage Type",
-            get_options(
-                "TermType",
-                ["OnDemand"]
-            )
+            "TermType",
+            "OnDemand"
         )
 
     with c10:
@@ -665,20 +672,16 @@ Select an Instance Type — vCPUs, Memory, and Storage auto-populate from AWS sp
                 key=f"gen_{instance_type}"
             )
 
-            license_model = st.selectbox(
+            license_model = select_option(
                 "License Model",
-                get_options(
-                    "License Model",
-                    ["No License required"]
-                )
+                "License Model",
+                "No License required"
             )
 
-            capacity_status = st.selectbox(
+            capacity_status = select_option(
                 "Capacity Status",
-                get_options(
-                    "CapacityStatus",
-                    ["Used"]
-                )
+                "CapacityStatus",
+                "Used"
             )
 
             preinstalled_software = st.selectbox(
@@ -699,28 +702,22 @@ Select an Instance Type — vCPUs, Memory, and Storage auto-populate from AWS sp
                 lease_contract = "Not Applicable"
                 offering_class = "Not Applicable"
             else:
-                purchase_option = st.selectbox(
+                purchase_option = select_option(
                     "Purchase Option",
-                    get_options(
-                        "PurchaseOption",
-                        ["No Upfront"]
-                    )
+                    "PurchaseOption",
+                    "No Upfront"
                 )
 
-                lease_contract = st.selectbox(
+                lease_contract = select_option(
                     "Lease Contract Length",
-                    get_options(
-                        "LeaseContractLength",
-                        ["1yr"]
-                    )
+                    "LeaseContractLength",
+                    "1yr"
                 )
 
-                offering_class = st.selectbox(
+                offering_class = select_option(
                     "Offering Class",
-                    get_options(
-                        "OfferingClass",
-                        ["standard"]
-                    )
+                    "OfferingClass",
+                    "standard"
                 )
 
 
